@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLMate - Transparent Curved Glass Login</title>
+    <!-- Imported Nunito (for thick rounded header) and Roboto (for standard UI text) -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@900&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Base Styling & Darker Top-to-Bottom Purple Gradient */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(to bottom, #4527a0, #0a001a);
+            overflow: hidden;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: default;
+        }
+
+        /* Ambient Background Glow Tracking Mouse */
+        #ambientGlow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.01) 40%, transparent 70%);
+            pointer-events: none;
+            z-index: 1; 
+            transform: translate(-50%, -50%);
+            mix-blend-mode: screen;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Wave Net Canvas */
+        #waveCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        /* Container & Views (Widened for larger text) */
+        .app-container {
+            position: relative;
+            z-index: 10;
+            width: 650px;
+            height: 500px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .view {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: scale(0.95);
+        }
+
+        .view.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1);
+        }
+
+        /* SQLMate Interactive Title - Massive, Thick, Rounded */
+        h1.sqmate-title {
+            font-family: 'Nunito', sans-serif;
+            font-size: 7rem; /* Increased size */
+            font-weight: 900; 
+            width: 100%;
+            text-align: center;
+            margin: 0 0 30px 0;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 2;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+        }
+
+        /* The Text (Orange Fluid Gradient) */
+        h1.sqmate-title span {
+            background: linear-gradient(160deg, rgba(255, 220, 150, 1) 0%, rgba(255, 140, 0, 0.9) 40%, rgba(220, 60, 0, 0.95) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0px -1px 1px rgba(255, 255, 255, 0.4)) 
+                    drop-shadow(0px 8px 15px rgba(255, 120, 0, 0.5));
+            transition: filter 0.4s ease;
+        }
+
+        /* Hover Interaction */
+        h1.sqmate-title:hover {
+            transform: translateY(-10px) scale(1.03);
+        }
+
+        h1.sqmate-title:hover span {
+            filter: drop-shadow(0px -1px 2px rgba(255, 255, 255, 0.7)) 
+                    drop-shadow(0px 15px 25px rgba(255, 120, 0, 0.8));
+        }
+
+        /* Transparent Curved Edge Glass Panels */
+        .glass-panel, .btn {
+            position: relative;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.03); 
+            
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.4);
+            border-left: 1px solid rgba(255, 255, 255, 0.25);
+            
+            backdrop-filter: blur(2px); 
+            -webkit-backdrop-filter: blur(2px);
+            
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 
+                        inset 0 0 15px rgba(255, 255, 255, 0.05),
+                        inset 2px 2px 10px rgba(255, 255, 255, 0.2), 
+                        inset -2px -2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 40px; 
+            transition: border 0.4s ease, box-shadow 0.4s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .glass-panel::before, .btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle 220px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.1), transparent 100%);
+            opacity: 0;
+            transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            z-index: 0;
+            border-radius: inherit;
+        }
+
+        .glass-panel:hover, .btn:hover {
+            border-top-color: rgba(255, 255, 255, 0.6);
+            border-left-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3), 
+                        inset 0 0 20px rgba(255, 255, 255, 0.08),
+                        inset 3px 3px 15px rgba(255, 255, 255, 0.3), 
+                        inset -3px -3px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .glass-panel:hover::before, .btn:hover::before { opacity: 1; }
+        .glass-panel > *, .btn span { position: relative; z-index: 2; }
+
+        .glass-panel {
+            padding: 40px;
+            width: 400px; /* Constrained width so the login form doesn't stretch */
+            margin: 0 auto;
+            box-sizing: border-box;
+            border-radius: 35px; 
+        }
+
+        .btn {
+            color: white;
+            padding: 14px 30px;
+            font-size: 1rem;
+            font-family: 'Roboto', sans-serif;
+            cursor: pointer;
+            margin: 10px;
+            width: 250px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn:hover { transform: translateY(-3px) scale(1.02); }
+        .btn:active { transform: translateY(1px) scale(0.98); }
+
+        .btn-small {
+            width: auto;
+            padding: 10px 24px;
+            font-size: 0.9rem;
+            margin: 5px;
+        }
+
+        .previous-logins {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.75);
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Transparent Curved Inputs */
+        input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 20px; 
+            box-shadow: inset 2px 2px 8px rgba(0,0,0,0.2), 
+                        inset -1px -1px 4px rgba(255,255,255,0.1);
+            color: white;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            font-family: 'Roboto', sans-serif;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.4);
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: inset 1px 1px 5px rgba(0,0,0,0.1), 
+                        0 0 15px rgba(255, 255, 255, 0.2);
+        }
+
+        input::placeholder { color: rgba(255,255,255,0.6); }
+
+        input:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 30px #311863 inset !important;
+            -webkit-text-fill-color: white !important;
+            transition: background-color 5000s ease-in-out 0s;
+            border-radius: 20px;
+        }
+
+        /* Animations */
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .fall-down { animation: fallDown 0.6s forwards; color: #ff6b6b; }
+        @keyframes fallDown {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(20px); opacity: 0; pointer-events: none; }
+        }
+
+        .fade-in { animation: fadeIn 0.5s forwards; }
+        @keyframes fadeIn {
+            0% { transform: translateY(-15px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; pointer-events: auto; }
+        }
+
+        .expand-fill {
+            position: absolute;
+            background: transparent;
+            border-top: 1px solid rgba(255, 255, 255, 0.4);
+            border-left: 1px solid rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            box-shadow: inset 2px 2px 10px rgba(255, 255, 255, 0.2), 
+                        inset -2px -2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 35px;
+            z-index: 5;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Morphing Spinner */
+        .morph-container {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .morph-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            top: 0; left: 0;
+            box-shadow: 0 0 8px rgba(255,255,255,0.6); 
+        }
+
+        .pulsing-text {
+            animation: pulse 1.5s ease-in-out infinite;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            transition: color 0.6s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ambientGlow"></div>
+    <canvas id="waveCanvas"></canvas>
+    <div id="expandElement" class="expand-fill" style="display:none;"></div>
+
+    <div class="app-container">
+        
+        <!-- Welcome View -->
+        <div id="welcomeView" class="view active">
+            <h1 class="sqmate-title"><span>SQLMate</span></h1>
+            
+            <button class="btn" onclick="transitionToLogin(event, '')"><span>Login</span></button>
+            <div class="previous-logins">
+                <p>Previous logins:</p>
+                <button class="btn btn-small" onclick="transitionToLogin(event, 'admin')"><span>Admin</span></button>
+                <button class="btn btn-small" onclick="transitionToLogin(event, 'john')"><span>John</span></button>
+                <button class="btn btn-small" onclick="transitionToLogin(event, 'alice')"><span>Alice</span></button>
+            </div>
+        </div>
+
+        <!-- Login Form -->
+        <div id="loginView" class="view">
+            <div class="glass-panel" id="loginForm">
+                <h2 style="margin-top:0; font-weight:400; text-align:center;">Sign In</h2>
+                <input type="text" id="username" placeholder="Username">
+                <input type="password" id="password" placeholder="Password">
+                <div id="errorMsg" style="height:20px; font-size:0.85rem; text-align:center;"></div>
+                <button class="btn" id="submitBtn" style="width:100%; margin: 20px 0 0 0; padding: 15px;" onclick="checkCredentials()"><span>Submit</span></button>
+                <button class="btn" style="width:100%; margin: 10px 0 0 0; background:transparent; border:none; box-shadow:none; color:rgba(255,255,255,0.75);" onclick="goBack()"><span>Back</span></button>
+            </div>
+        </div>
+
+        <!-- Authenticating -->
+        <div id="authView" class="view">
+            <div class="morph-container" id="morphContainer"></div>
+            <div class="pulsing-text" id="authText">Authenticating...</div>
+        </div>
+
+        <!-- Inside -->
+        <div id="insideView" class="view">
+            <div class="glass-panel" style="text-align: center; padding: 50px;">
+                <h1 style="color: #4ade80; margin-bottom: 20px; font-weight: 400;">Inside</h1>
+                <p style="margin:0 0 25px 0; opacity: 0.9;">Authentication Successful.</p>
+                <button class="btn" onclick="logOut()"><span>Log out</span></button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Natural Apple Glass Mouse Tracking (Global & Local) ---
+        const ambientGlow = document.getElementById('ambientGlow');
+        let isMoving = false;
+        let globalMouseX = window.innerWidth / 2;
+        let globalMouseY = window.innerHeight / 2;
+
+        document.addEventListener('mousemove', (e) => {
+            globalMouseX = e.clientX;
+            globalMouseY = e.clientY;
+
+            if (!isMoving) {
+                requestAnimationFrame(() => {
+                    ambientGlow.style.left = `${globalMouseX}px`;
+                    ambientGlow.style.top = `${globalMouseY}px`;
+
+                    document.querySelectorAll('.glass-panel, .btn').forEach(el => {
+                        const rect = el.getBoundingClientRect();
+                        const x = globalMouseX - rect.left;
+                        const y = globalMouseY - rect.top;
+                        el.style.setProperty('--mouse-x', `${x}px`);
+                        el.style.setProperty('--mouse-y', `${y}px`);
+                    });
+                    isMoving = false;
+                });
+                isMoving = true;
+            }
+        });
+
+        // --- Interactive Canvas Wave Animation ---
+        const canvas = document.getElementById('waveCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let time = 0;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function drawWave() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            const spacing = 40;
+            const rows = Math.ceil(height / spacing);
+            const cols = Math.ceil(width / spacing);
+            const interactionRadius = 180; 
+
+            for(let y = 0; y < rows; y++) {
+                for(let x = 0; x < cols; x++) {
+                    const xPos = x * spacing;
+                    const yOffset = Math.sin(time + xPos * 0.01 + y * 0.2) * 15;
+                    const yPos = y * spacing + yOffset;
+                    let size = (Math.sin(time * 2 + xPos * 0.02) + 1.5) * 1.5;
+
+                    // Physics: Push dots away from cursor
+                    const dx = xPos - globalMouseX;
+                    const dy = yPos - globalMouseY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    let drawX = xPos;
+                    let drawY = yPos;
+
+                    if (distance < interactionRadius) {
+                        const force = (interactionRadius - distance) / interactionRadius; 
+                        drawX += (dx / distance) * force * 35; 
+                        drawY += (dy / distance) * force * 35;
+                        size += force * 1.5; 
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(drawX, drawY, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            time += 0.03;
+            requestAnimationFrame(drawWave);
+        }
+        drawWave();
+
+        // --- Enter Key Support for Login ---
+        document.getElementById('username').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') checkCredentials();
+        });
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') checkCredentials();
+        });
+
+        // --- Morphing Dots to Tick Animation System ---
+        const numDots = 8; 
+        const morphContainer = document.getElementById('morphContainer');
+        const dots = [];
+        let authState = 'idle'; 
+        let spinAngle = 0;
+        let spinFrameReq;
+
+        const tickCoords = [
+            {x: 22, y: 42}, {x: 28, y: 48}, {x: 34, y: 54}, {x: 40, y: 47}, 
+            {x: 46, y: 40}, {x: 52, y: 33}, {x: 58, y: 26}, {x: 64, y: 19}
+        ];
+
+        for (let i = 0; i < numDots; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'morph-dot';
+            morphContainer.appendChild(dot);
+            dots.push(dot);
+        }
+
+        function animateSpinner() {
+            if (authState === 'spinning') {
+                spinAngle += 0.06;
+                dots.forEach((dot, i) => {
+                    const angle = spinAngle + (i / numDots) * Math.PI * 2;
+                    const radius = 30; 
+                    const x = 40 + radius * Math.cos(angle) - 5; 
+                    const y = 40 + radius * Math.sin(angle) - 5;
+                    dot.style.transform = `translate(${x}px, ${y}px)`;
+                });
+                spinFrameReq = requestAnimationFrame(animateSpinner);
+            }
+        }
+
+        function triggerTickMorph() {
+            authState = 'morphing';
+            cancelAnimationFrame(spinFrameReq);
+            
+            dots.forEach((dot, i) => {
+                const target = tickCoords[i];
+                dot.style.transition = 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.6s ease, box-shadow 0.6s ease';
+                dot.style.transform = `translate(${target.x - 5}px, ${target.y - 5}px)`;
+                dot.style.backgroundColor = '#4ade80';
+                dot.style.boxShadow = '0 0 12px rgba(74, 222, 128, 0.8)';
+            });
+        }
+
+        function resetSpinner() {
+            authState = 'idle';
+            cancelAnimationFrame(spinFrameReq);
+            dots.forEach(dot => {
+                dot.style.transition = 'none'; 
+                dot.style.backgroundColor = 'white';
+                dot.style.boxShadow = '0 0 8px rgba(255,255,255,0.6)';
+            });
+        }
+
+        // --- Application Logic ---
+        // Credentials are verified by the real Python backend (server.py, adapted from
+        // login_gui.py) via this endpoint, not by any list stored in the browser.
+        const LOGIN_ENDPOINT = '/api/login';
+
+        const views = {
+            welcome: document.getElementById('welcomeView'),
+            login: document.getElementById('loginView'),
+            auth: document.getElementById('authView'),
+            inside: document.getElementById('insideView')
+        };
+
+        function switchView(viewName) {
+            Object.values(views).forEach(v => v.classList.remove('active'));
+            views[viewName].classList.add('active');
+        }
+
+        function transitionToLogin(event, autofillUser) {
+            const btn = event.currentTarget;
+            const rect = btn.getBoundingClientRect();
+            const expandEl = document.getElementById('expandElement');
+            const passInput = document.getElementById('password');
+            const errorMsg = document.getElementById('errorMsg');
+            
+            expandEl.style.display = 'block';
+            expandEl.style.top = rect.top + 'px';
+            expandEl.style.left = rect.left + 'px';
+            expandEl.style.width = rect.width + 'px';
+            expandEl.style.height = rect.height + 'px';
+            
+            setTimeout(() => {
+                expandEl.style.top = '10%';
+                expandEl.style.left = '10%';
+                expandEl.style.width = '80%';
+                expandEl.style.height = '80%';
+                expandEl.style.opacity = '0';
+                
+                setTimeout(() => {
+                    expandEl.style.display = 'none';
+                    expandEl.style.opacity = '1';
+                    document.getElementById('password').focus();
+                }, 600);
+            }, 10);
+
+            document.getElementById('username').value = autofillUser;
+            passInput.value = '';
+            errorMsg.innerText = '';
+            passInput.classList.remove('fall-down');
+            passInput.classList.remove('fade-in');
+            
+            switchView('login');
+        }
+
+        function goBack() { switchView('welcome'); }
+
+        function logOut() {
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('errorMsg').innerText = '';
+            resetSpinner();
+            switchView('welcome');
+        }
+
+        async function checkCredentials() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const form = document.getElementById('loginForm');
+            const errorMsg = document.getElementById('errorMsg');
+            const passInput = document.getElementById('password');
+            const authText = document.getElementById('authText');
+            const submitBtn = document.getElementById('submitBtn');
+
+            submitBtn.disabled = true;
+
+            let success = false;
+            try {
+                const response = await fetch(LOGIN_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                if (!response.ok) throw new Error('Server error');
+                const data = await response.json();
+                success = !!data.success;
+            } catch (err) {
+                submitBtn.disabled = false;
+                errorMsg.innerText = "Can't reach the server. Is app.py running?";
+                errorMsg.style.color = "#ff6b6b";
+                return;
+            }
+
+            if (success) {
+                switchView('auth');
+                resetSpinner();
+                authState = 'spinning';
+                animateSpinner();
+                authText.innerText = "Authenticating...";
+                authText.style.color = "white";
+                authText.classList.add('pulsing-text');
+
+                setTimeout(() => {
+                    triggerTickMorph();
+                    authText.innerText = "Success";
+                    authText.style.color = "#4ade80";
+                    authText.classList.remove('pulsing-text');
+
+                    setTimeout(() => {
+                        submitBtn.disabled = false;
+                        switchView('inside');
+                    }, 1000);
+                }, 2000);
+
+            } else {
+                submitBtn.disabled = false;
+                form.classList.remove('shake');
+                passInput.classList.remove('fall-down');
+                passInput.classList.remove('fade-in');
+                errorMsg.classList.remove('fade-in');
+
+                void form.offsetWidth;
+
+                form.classList.add('shake');
+                passInput.classList.add('fall-down');
+                errorMsg.innerText = "Incorrect";
+                errorMsg.style.color = "#ff6b6b";
+
+                setTimeout(() => {
+                    passInput.classList.remove('fall-down');
+                    passInput.value = '';
+                    passInput.classList.add('fade-in');
+                    errorMsg.innerText = "Please try again.";
+                    errorMsg.style.color = "rgba(255,255,255,0.75)";
+                    errorMsg.classList.add('fade-in');
+                    passInput.focus();
+                }, 800);
+            }
+        }
+    </script>
+</body>
+</html>

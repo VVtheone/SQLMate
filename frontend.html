@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQLMate</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@900&family=Roboto:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+    /* ============================== Shared base ============================== */
+    body, html {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        font-family: 'Roboto', sans-serif;
+        background: linear-gradient(to bottom, #4527a0, #0a001a);
+        overflow: hidden; color: white;
+        display: flex; justify-content: center; align-items: center;
+        cursor: default;
+    }
+    #ambientGlow {
+        position: fixed; top: 50%; left: 50%; width: 800px; height: 800px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.01) 40%, transparent 70%);
+        pointer-events: none; z-index: 1; transform: translate(-50%, -50%);
+        mix-blend-mode: screen; transition: opacity 0.3s ease;
+    }
+    #waveCanvas {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 2; opacity: 0.5; pointer-events: none;
+    }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 5px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.4); border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.6); }
+    * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.4) rgba(255,255,255,0.04); }
+
+    /* ============================== Auth screen ============================== */
+    #authScreen { position: relative; z-index: 10; width: 650px; height: 500px;
+        display: flex; justify-content: center; align-items: center; }
+    #authScreen .view {
+        position: absolute; width: 100%; height: 100%;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.6s cubic-bezier(0.4,0,0.2,1), transform 0.6s cubic-bezier(0.4,0,0.2,1);
+        transform: scale(0.95);
+    }
+    #authScreen .view.active { opacity: 1; pointer-events: auto; transform: scale(1); }
+    #authScreen h1.sqmate-title {
+        font-family: 'Nunito', sans-serif; font-size: 5.5rem; font-weight: 900;
+        width: 100%; text-align: center; margin: 0 0 30px 0; letter-spacing: 2px;
+        position: relative; z-index: 2;
+    }
+    #authScreen h1.sqmate-title span {
+        background: linear-gradient(160deg, rgba(255,220,150,1) 0%, rgba(255,140,0,0.9) 40%, rgba(220,60,0,0.95) 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0px -1px 1px rgba(255,255,255,0.4)) drop-shadow(0px 8px 15px rgba(255,120,0,0.5));
+    }
+    #authScreen .glass-panel, #authScreen .btn {
+        position: relative; overflow: hidden; background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-top: 1px solid rgba(255,255,255,0.4);
+        border-left: 1px solid rgba(255,255,255,0.25);
+        backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2), inset 0 0 15px rgba(255,255,255,0.05),
+                    inset 2px 2px 10px rgba(255,255,255,0.2), inset -2px -2px 10px rgba(0,0,0,0.1);
+        border-radius: 40px;
+        transition: border 0.4s ease, box-shadow 0.4s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    #authScreen .glass-panel::before, #authScreen .btn::before {
+        content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
+        background: radial-gradient(circle 220px at var(--mouse-x,50%) var(--mouse-y,50%), rgba(255,255,255,0.1), transparent 100%);
+        opacity: 0; transition: opacity 0.6s cubic-bezier(0.4,0,0.2,1); pointer-events: none; z-index: 0; border-radius: inherit;
+    }
+    #authScreen .glass-panel:hover, #authScreen .btn:hover {
+        border-top-color: rgba(255,255,255,0.6); border-left-color: rgba(255,255,255,0.4);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.3), inset 0 0 20px rgba(255,255,255,0.08),
+                    inset 3px 3px 15px rgba(255,255,255,0.3), inset -3px -3px 15px rgba(0,0,0,0.15);
+    }
+    #authScreen .glass-panel:hover::before, #authScreen .btn:hover::before { opacity: 1; }
+    #authScreen .glass-panel > *, #authScreen .btn span { position: relative; z-index: 2; }
+    #authScreen .glass-panel { padding: 40px; width: 380px; margin: 0 auto; box-sizing: border-box; border-radius: 35px; }
+    #authScreen .btn {
+        color: white; padding: 14px 30px; font-size: 1rem; cursor: pointer;
+        display: inline-flex; justify-content: center; align-items: center;
+    }
+    #authScreen .btn:hover { transform: translateY(-3px) scale(1.02); }
+    #authScreen .btn:active { transform: translateY(1px) scale(0.98); }
+    #authScreen input {
+        width: 100%; background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(0,0,0,0.1);
+        border-radius: 20px; box-shadow: inset 2px 2px 8px rgba(0,0,0,0.2), inset -1px -1px 4px rgba(255,255,255,0.1);
+        color: white; padding: 15px 20px; margin-bottom: 16px; font-size: 1rem;
+        box-sizing: border-box; transition: all 0.3s ease;
+    }
+    #authScreen input:focus {
+        outline: none; border-top: 1px solid rgba(255,255,255,0.4); border-left: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.1); box-shadow: inset 1px 1px 5px rgba(0,0,0,0.1), 0 0 15px rgba(255,255,255,0.2);
+    }
+    #authScreen input::placeholder { color: rgba(255,255,255,0.6); }
+    #authScreen .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes shake {
+        10%,90% { transform: translate3d(-1px,0,0); } 20%,80% { transform: translate3d(2px,0,0); }
+        30%,50%,70% { transform: translate3d(-4px,0,0); } 40%,60% { transform: translate3d(4px,0,0); }
+    }
+    #authScreen .fall-down { animation: fallDown 0.6s forwards; color: #ff6b6b; }
+    @keyframes fallDown { 0% { transform: translateY(0); opacity:1; } 100% { transform: translateY(20px); opacity:0; pointer-events:none; } }
+    #authScreen .fade-in { animation: fadeIn 0.5s forwards; }
+    @keyframes fadeIn { 0% { transform: translateY(-15px); opacity:0; } 100% { transform: translateY(0); opacity:1; pointer-events:auto; } }
+    #authScreen .morph-container { width: 80px; height: 80px; position: relative; margin-bottom: 20px; }
+    #authScreen .morph-dot {
+        position: absolute; width: 10px; height: 10px; background-color: white; border-radius: 50%;
+        top: 0; left: 0; box-shadow: 0 0 8px rgba(255,255,255,0.6);
+    }
+    #authScreen .pulsing-text { animation: pulse 1.5s ease-in-out infinite; font-size: 1.1rem; letter-spacing: 1px; transition: color 0.6s ease; }
+    @keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+    /* ============================== Dashboard screen ============================== */
+    #dashboardScreen { position: relative; z-index: 10; width: 95vw; max-width: 1400px; height: 92vh;
+        display: none; flex-direction: column; }
+    #dashboardScreen .header-row { width: 100%; display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+    #dashboardScreen h1.sqmate-title {
+        font-family: 'Nunito', sans-serif; font-size: 2.2rem; font-weight: 900; margin: 0; line-height: 1;
+        letter-spacing: 2px; position: relative; z-index: 2;
+    }
+    #dashboardScreen h1.sqmate-title span {
+        background: linear-gradient(160deg, rgba(255,220,150,1) 0%, rgba(255,140,0,0.9) 40%, rgba(220,60,0,0.95) 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0px -1px 1px rgba(255,255,255,0.4)) drop-shadow(0px 4px 8px rgba(255,120,0,0.4));
+    }
+    #dashboardScreen .glass-panel {
+        position: relative; overflow: hidden; flex-grow: 1; background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.4);
+        border-left: 1px solid rgba(255,255,255,0.25);
+        backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2), inset 0 0 15px rgba(255,255,255,0.05),
+                    inset 2px 2px 10px rgba(255,255,255,0.2), inset -2px -2px 10px rgba(0,0,0,0.1);
+        border-radius: 30px; padding: 30px; box-sizing: border-box;
+        display: flex; flex-direction: column; gap: 25px;
+    }
+    #dashboardScreen .glass-panel::before {
+        content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
+        background: radial-gradient(circle 300px at var(--mouse-x,50%) var(--mouse-y,50%), rgba(255,255,255,0.08), transparent 100%);
+        opacity: 0; transition: opacity 0.6s cubic-bezier(0.4,0,0.2,1); pointer-events: none; z-index: 0; border-radius: inherit;
+    }
+    #dashboardScreen .glass-panel:hover::before { opacity: 1; }
+    #dashboardScreen .glass-panel > * { position: relative; z-index: 2; }
+    #dashboardScreen .section-header { font-size: 0.9rem; font-weight: 500; letter-spacing: 1px; color: rgba(255,255,255,0.8); text-transform: uppercase; }
+    #dashboardScreen .flex-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+    #dashboardScreen .flex-row > .btn { flex-shrink: 0; }
+    #dashboardScreen .flex-col { display: flex; flex-direction: column; gap: 15px; flex-grow: 1; min-height: 0; min-width: 0; }
+    #dashboardScreen .glass-well {
+        background: rgba(255,255,255,0.08); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(255,255,255,0.1); border-top: 1px solid rgba(255,255,255,0.2);
+        border-radius: 12px; box-shadow: inset 2px 2px 8px rgba(0,0,0,0.25), inset -1px -1px 4px rgba(255,255,255,0.05),
+                    0 4px 12px rgba(0,0,0,0.1); color: white; padding: 12px 15px; font-size: 0.95rem;
+        box-sizing: border-box; transition: all 0.3s ease;
+    }
+    #dashboardScreen input.glass-well { height: 42px; flex: 1 1 150px; min-width: 120px; margin: 0; }
+    #dashboardScreen input.glass-well:focus {
+        outline: none; border-top: 1px solid rgba(255,255,255,0.5); border-left: 1px solid rgba(255,255,255,0.3);
+        background: rgba(255,255,255,0.12); box-shadow: inset 1px 1px 5px rgba(0,0,0,0.1), 0 0 15px rgba(255,255,255,0.2);
+    }
+    #dashboardScreen input.glass-well::placeholder { color: rgba(255,255,255,0.55); }
+    #dashboardScreen .btn {
+        position: relative; overflow: hidden; background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.4);
+        border-left: 1px solid rgba(255,255,255,0.25);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2), inset 2px 2px 10px rgba(255,255,255,0.2), inset -2px -2px 10px rgba(0,0,0,0.1);
+        border-radius: 12px; color: white; padding: 0 25px; height: 42px; font-size: 0.95rem; font-weight: 500;
+        cursor: pointer; transition: border 0.3s ease, box-shadow 0.3s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+        display: inline-flex; justify-content: center; align-items: center; white-space: nowrap;
+    }
+    #dashboardScreen .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #dashboardScreen .btn::before {
+        content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
+        background: radial-gradient(circle 80px at var(--mouse-x,50%) var(--mouse-y,50%), rgba(255,255,255,0.2), transparent 100%);
+        opacity: 0; transition: opacity 0.6s ease; pointer-events: none; z-index: 0;
+    }
+    #dashboardScreen .btn:hover {
+        transform: translateY(-2px); border-top-color: rgba(255,255,255,0.6); border-left-color: rgba(255,255,255,0.4);
+        box-shadow: 0 12px 25px rgba(0,0,0,0.3), inset 3px 3px 15px rgba(255,255,255,0.3);
+    }
+    #dashboardScreen .btn:hover::before { opacity: 1; }
+    #dashboardScreen .btn span { position: relative; z-index: 2; }
+    #dashboardScreen .btn:active { transform: translateY(1px); }
+    #dashboardScreen .status-text { color: #4ade80; font-size: 0.9rem; margin-top: 8px; margin-left: 5px; text-shadow: 0 0 10px rgba(74,222,128,0.3); }
+    #dashboardScreen .status-text.error { color: #ff6b6b; text-shadow: none; }
+    #dashboardScreen .status-text a { color: rgba(255,255,255,0.6); margin-left: 12px; cursor: pointer; text-decoration: underline; }
+    #dashboardScreen .assistant-output {
+        font-family: 'Fira Code','Courier New',monospace; white-space: pre-wrap; line-height: 1.6;
+        color: rgba(255,255,255,0.9); overflow-y: auto; overflow-x: hidden;
+        overflow-wrap: anywhere; word-break: break-word;
+        flex: 0 1 45%; min-height: 0; max-height: 45%; resize: none;
+    }
+    #dashboardScreen .table-container {
+        overflow-x: auto; overflow-y: auto; overflow-wrap: anywhere;
+        flex: 1 1 auto; min-height: 150px; max-height: 100%; resize: none;
+        overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    }
+    #dashboardScreen table { width: max-content; min-width: 100%; border-collapse: collapse; text-align: right; }
+    #dashboardScreen th, #dashboardScreen td { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.08); white-space: nowrap; }
+    #dashboardScreen th { font-weight: 500; color: rgba(255,255,255,0.7); text-align: right; position: sticky; top: 0; z-index: 1;
+        background: rgba(255,255,255,0.05); backdrop-filter: blur(8px); }
+    #dashboardScreen tr:last-child td { border-bottom: none; }
+    #dashboardScreen tr:hover td { background: rgba(255,255,255,0.05); }
+    #dashboardScreen .grid-split { display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: 25px; flex-grow: 1; min-height: 0; overflow: hidden; }
+    @media (min-width: 1024px) { #dashboardScreen .grid-split { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; } }
+
+    /* ============================== Modal overlay (shared) ============================== */
+    #modalOverlay {
+        display: none; position: fixed; inset: 0; z-index: 100;
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(3px);
+        justify-content: center; align-items: center;
+    }
+    #modalOverlay .modal-box {
+        width: 480px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+        background: rgba(40,20,70,0.85); border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 24px; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        display: flex; flex-direction: column; gap: 14px;
+    }
+    #modalOverlay .modal-box h3 { margin: 0; font-weight: 500; }
+    #modalOverlay .choice-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    #modalOverlay .choice-btn.selected { border-top-color: #4ade80; box-shadow: 0 0 15px rgba(74,222,128,0.4); }
+    #modalOverlay .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+    #modalOverlay .preview-note { font-size: 0.85rem; color: rgba(255,255,255,0.7); }
+</style>
+</head>
+<body>
+
+<div id="ambientGlow"></div>
+<canvas id="waveCanvas"></canvas>
+
+<!-- ============================== Auth screen ============================== -->
+<div id="authScreen">
+    <div id="loginView" class="view active">
+        <div class="glass-panel" id="loginForm">
+            <h1 class="sqmate-title" style="font-size:2.6rem; margin-bottom:20px;"><span>SQLMate</span></h1>
+            <input type="text" id="username" placeholder="Username" autocomplete="username">
+            <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+            <div id="errorMsg" style="height:20px; font-size:0.85rem; text-align:center;"></div>
+            <button class="btn" style="width:100%; margin:8px 0 0 0; padding:15px;" onclick="checkCredentials()"><span>Sign In</span></button>
+        </div>
+    </div>
+
+    <div id="authView" class="view">
+        <div class="morph-container" id="morphContainer"></div>
+        <div class="pulsing-text" id="authText">Authenticating...</div>
+    </div>
+</div>
+
+<!-- ============================== Dashboard screen ============================== -->
+<div id="dashboardScreen">
+    <div class="glass-panel" id="mainDashboard">
+
+        <div>
+            <div class="header-row">
+                <div class="section-header" style="margin:0;">Database Connection</div>
+                <h1 class="sqmate-title"><span>SQLMate</span></h1>
+            </div>
+            <div class="flex-row">
+                <input type="text" class="glass-well" id="dbHost" placeholder="Host (default: localhost)">
+                <input type="text" class="glass-well" id="dbUser" placeholder="User">
+                <input type="password" class="glass-well" id="dbPassword" placeholder="Password">
+                <input type="text" class="glass-well" id="dbDatabase" placeholder="Database">
+                <input type="text" class="glass-well" id="dbTable" placeholder="Table">
+                <button class="btn" id="connectBtn" onclick="handleConnect()"><span>Connect</span></button>
+            </div>
+            <div class="status-text" id="statusText">Not connected.</div>
+        </div>
+
+        <div>
+            <div class="flex-row">
+                <div class="section-header" style="margin:0;">Ask about your data:</div>
+                <input type="text" class="glass-well" id="askInput" placeholder="Enter your natural language query..." style="flex-grow:1;">
+                <button class="btn" id="analyzeBtn" onclick="handleAsk()"><span>Analyze</span></button>
+            </div>
+        </div>
+
+        <div class="grid-split">
+            <div class="flex-col">
+                <div class="section-header">Assistant</div>
+                <div class="glass-well assistant-output" id="assistantLog" style="flex: 1 1 45%;">Connect to a table, then ask a question to get started.</div>
+
+                <div class="section-header" style="margin-top:4px;">Data Analysis Chat</div>
+                <div class="glass-well assistant-output" id="analysisLog" style="flex: 1 1 45%;">Ask things like "what's the average salary" or "project revenue 2 years from now" - real math over your actual data, not a guess.</div>
+                <div class="flex-row" style="flex-shrink:0; margin-top:5px;">
+                    <input type="text" class="glass-well" id="analysisInput" placeholder="Ask for a mean, median, mode, or a future projection...">
+                    <button class="btn" style="width:auto; padding:0 20px;" id="analysisSendBtn" onclick="handleAnalysisAsk()"><span>Send</span></button>
+                </div>
+            </div>
+
+            <div class="flex-col">
+                <div class="section-header" style="margin-bottom:0px;">Results</div>
+                <div class="glass-well table-container" style="padding:0;">
+                    <table>
+                        <thead><tr id="resultsHead"></tr></thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================== Shared modal ============================== -->
+<div id="modalOverlay">
+    <div class="modal-box" id="modalBox"></div>
+</div>
+
+<script>
+/* ============================================================= */
+/* Shared: ambient glow + wave canvas background                 */
+/* ============================================================= */
+const ambientGlow = document.getElementById('ambientGlow');
+let isMoving = false, globalMouseX = window.innerWidth/2, globalMouseY = window.innerHeight/2;
+document.addEventListener('mousemove', (e) => {
+    globalMouseX = e.clientX; globalMouseY = e.clientY;
+    if (!isMoving) {
+        requestAnimationFrame(() => {
+            ambientGlow.style.left = `${globalMouseX}px`;
+            ambientGlow.style.top = `${globalMouseY}px`;
+            document.querySelectorAll('.glass-panel, .btn').forEach(el => {
+                const rect = el.getBoundingClientRect();
+                el.style.setProperty('--mouse-x', `${globalMouseX - rect.left}px`);
+                el.style.setProperty('--mouse-y', `${globalMouseY - rect.top}px`);
+            });
+            isMoving = false;
+        });
+        isMoving = true;
+    }
+});
+const canvas = document.getElementById('waveCanvas');
+const ctx = canvas.getContext('2d');
+let width, height, time = 0;
+// Smoothed cursor position: the wave chases this instead of the raw mouse
+// coordinates, so it trails behind the cursor instead of snapping to it.
+let smoothMouseX = globalMouseX, smoothMouseY = globalMouseY;
+const cursorFollowEase = 0.06; // lower = slower/laggier wave follow
+function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+function drawWave() {
+    smoothMouseX += (globalMouseX - smoothMouseX) * cursorFollowEase;
+    smoothMouseY += (globalMouseY - smoothMouseY) * cursorFollowEase;
+    ctx.clearRect(0,0,width,height);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    const spacing = 40, rows = Math.ceil(height/spacing), cols = Math.ceil(width/spacing), interactionRadius = 180;
+    for (let y=0; y<rows; y++) {
+        for (let x=0; x<cols; x++) {
+            const xPos = x*spacing;
+            const yOffset = Math.sin(time + xPos*0.01 + y*0.2) * 15;
+            const yPos = y*spacing + yOffset;
+            let size = (Math.sin(time*2 + xPos*0.02) + 1.5) * 1.5;
+            const dx = xPos - smoothMouseX, dy = yPos - smoothMouseY;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            let drawX = xPos, drawY = yPos;
+            if (distance < interactionRadius) {
+                const force = (interactionRadius - distance) / interactionRadius;
+                drawX += (dx/distance) * force * 35;
+                drawY += (dy/distance) * force * 35;
+                size += force * 1.5;
+            }
+            ctx.beginPath(); ctx.arc(drawX, drawY, size, 0, Math.PI*2); ctx.fill();
+        }
+    }
+    time += 0.015;
+    requestAnimationFrame(drawWave);
+}
+drawWave();
+
+/* ============================================================= */
+/* Auth screen                                                   */
+/* ============================================================= */
+const authViews = { login: document.getElementById('loginView'), auth: document.getElementById('authView') };
+function switchAuthView(name) {
+    Object.values(authViews).forEach(v => v.classList.remove('active'));
+    authViews[name].classList.add('active');
+}
+
+document.getElementById('username').addEventListener('keypress', e => { if (e.key === 'Enter') checkCredentials(); });
+document.getElementById('password').addEventListener('keypress', e => { if (e.key === 'Enter') checkCredentials(); });
+
+const numDots = 8;
+const morphContainer = document.getElementById('morphContainer');
+const dots = [];
+let authState = 'idle', spinAngle = 0, spinFrameReq;
+const tickCoords = [{x:22,y:42},{x:28,y:48},{x:34,y:54},{x:40,y:47},{x:46,y:40},{x:52,y:33},{x:58,y:26},{x:64,y:19}];
+for (let i=0; i<numDots; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'morph-dot';
+    morphContainer.appendChild(dot);
+    dots.push(dot);
+}
+function animateSpinner() {
+    if (authState === 'spinning') {
+        spinAngle += 0.06;
+        dots.forEach((dot,i) => {
+            const angle = spinAngle + (i/numDots) * Math.PI*2, radius = 30;
+            dot.style.transform = `translate(${40+radius*Math.cos(angle)-5}px, ${40+radius*Math.sin(angle)-5}px)`;
+        });
+        spinFrameReq = requestAnimationFrame(animateSpinner);
+    }
+}
+function triggerTickMorph() {
+    authState = 'morphing';
+    cancelAnimationFrame(spinFrameReq);
+    dots.forEach((dot,i) => {
+        const target = tickCoords[i];
+        dot.style.transition = 'transform 0.6s cubic-bezier(0.34,1.56,0.64,1), background-color 0.6s ease, box-shadow 0.6s ease';
+        dot.style.transform = `translate(${target.x-5}px, ${target.y-5}px)`;
+        dot.style.backgroundColor = '#4ade80';
+        dot.style.boxShadow = '0 0 12px rgba(74,222,128,0.8)';
+    });
+}
+function resetSpinner() {
+    authState = 'idle';
+    cancelAnimationFrame(spinFrameReq);
+    dots.forEach(dot => {
+        dot.style.transition = 'none';
+        dot.style.backgroundColor = 'white';
+        dot.style.boxShadow = '0 0 8px rgba(255,255,255,0.6)';
+    });
+}
+
+async function checkCredentials() {
+    const user = document.getElementById('username').value.trim();
+    const pass = document.getElementById('password').value;
+    const form = document.getElementById('loginForm');
+    const errorMsg = document.getElementById('errorMsg');
+    const passInput = document.getElementById('password');
+
+    if (!user || !pass) {
+        showLoginError('Enter a username and password.');
+        return;
+    }
+
+    let data;
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({username: user, password: pass})
+        });
+        data = await res.json();
+    } catch (e) {
+        showLoginError('Could not reach the server.');
+        return;
+    }
+
+    if (data.success) {
+        switchAuthView('auth');
+        resetSpinner();
+        authState = 'spinning';
+        animateSpinner();
+        const authText = document.getElementById('authText');
+        authText.innerText = 'Authenticating...';
+        authText.style.color = 'white';
+        authText.classList.add('pulsing-text');
+
+        setTimeout(() => {
+            triggerTickMorph();
+            authText.innerText = 'Success';
+            authText.style.color = '#4ade80';
+            authText.classList.remove('pulsing-text');
+            setTimeout(() => enterDashboard(), 900);
+        }, 1100);
+    } else {
+        showLoginError(data.error || 'Incorrect username or password.');
+    }
+
+    function showLoginError(message) {
+        form.classList.remove('shake');
+        passInput.classList.remove('fall-down');
+        errorMsg.classList.remove('fade-in');
+        void form.offsetWidth;
+        form.classList.add('shake');
+        passInput.classList.add('fall-down');
+        errorMsg.innerText = message;
+        errorMsg.style.color = '#ff6b6b';
+        setTimeout(() => {
+            passInput.classList.remove('fall-down');
+            passInput.value = '';
+            passInput.classList.add('fade-in');
+            passInput.focus();
+        }, 500);
+    }
+}
+
+function enterDashboard() {
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('dashboardScreen').style.display = 'flex';
+    initDashboard();
+}
+
+/* On load, skip the login screen if the server session is still valid
+   (e.g. the page was refreshed without the backend restarting). */
+(async function checkExistingSession() {
+    try {
+        const res = await fetch('/api/session');
+        const data = await res.json();
+        if (data.authenticated) enterDashboard();
+    } catch (e) { /* stay on login */ }
+})();
+
+/* ============================================================= */
+/* Dashboard                                                     */
+/* ============================================================= */
+let dashboardInitialized = false;
+let dsConnected = false;
+let pendingClarification = null; // { originalQuestion }
+
+function log(text) {
+    const el = document.getElementById('assistantLog');
+    el.textContent = (el.textContent === 'Connect to a table, then ask a question to get started.')
+        ? text
+        : el.textContent + '\n\n' + text;
+    el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(text, isError) {
+    const el = document.getElementById('statusText');
+    el.classList.toggle('error', !!isError);
+    el.innerHTML = '';
+    el.appendChild(document.createTextNode(text));
+    if (dsConnected) {
+        const disconnectLink = document.createElement('a');
+        disconnectLink.textContent = 'Disconnect';
+        disconnectLink.onclick = handleDisconnect;
+        el.appendChild(disconnectLink);
+    }
+}
+
+function renderResults(columns, rows) {
+    const head = document.getElementById('resultsHead');
+    const body = document.getElementById('resultsBody');
+    head.innerHTML = '';
+    body.innerHTML = '';
+    (columns || []).forEach(c => {
+        const th = document.createElement('th');
+        th.textContent = c;
+        head.appendChild(th);
+    });
+    (rows || []).forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(v => {
+            const td = document.createElement('td');
+            td.textContent = (v === null || v === undefined) ? 'NULL' : v;
+            tr.appendChild(td);
+        });
+        body.appendChild(tr);
+    });
+}
+
+async function initDashboard() {
+    if (dashboardInitialized) return;
+    dashboardInitialized = true;
+
+    document.getElementById('askInput').addEventListener('keypress', e => { if (e.key === 'Enter') handleAsk(); });
+    document.getElementById('analysisInput').addEventListener('keypress', e => { if (e.key === 'Enter') handleAnalysisAsk(); });
+
+    try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+        if (data.connected) {
+            dsConnected = true;
+            document.getElementById('dbHost').value = data.host || '';
+            document.getElementById('dbDatabase').value = data.database || '';
+            document.getElementById('dbTable').value = data.table || '';
+            setStatus(`Connected to ${data.alias}.`, false);
+            refreshResultsTable();
+        }
+    } catch (e) { /* leave as not-connected */ }
+}
+
+async function handleConnect() {
+    const btn = document.getElementById('connectBtn');
+    btn.disabled = true;
+    try {
+        const body = {
+            host: document.getElementById('dbHost').value,
+            user: document.getElementById('dbUser').value,
+            password: document.getElementById('dbPassword').value,
+            database: document.getElementById('dbDatabase').value,
+            table: document.getElementById('dbTable').value,
+        };
+        const res = await fetch('/api/connect', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.success) {
+            dsConnected = true;
+            setStatus(`Connected to ${data.alias}.`, false);
+            log(`Connected to ${data.alias}.`);
+            resetAnalysisLog();
+            renderResults([], []);
+            refreshResultsTable();
+        } else {
+            dsConnected = false;
+            setStatus(data.error || 'Could not connect.', true);
+        }
+    } catch (e) {
+        setStatus('Could not reach the server.', true);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function handleDisconnect() {
+    try { await fetch('/api/disconnect', {method:'POST'}); } catch (e) {}
+    dsConnected = false;
+    pendingClarification = null;
+    setStatus('Not connected.', false);
+    document.getElementById('assistantLog').textContent = 'Connect to a table, then ask a question to get started.';
+    resetAnalysisLog();
+    renderResults([], []);
+}
+
+function resetAnalysisLog() {
+    const el = document.getElementById('analysisLog');
+    el.textContent = 'Ask things like "what\'s the average salary" or "project revenue 2 years from now" - real math over your actual data, not a guess.';
+    el.dataset.placeholder = 'true';
+}
+
+async function refreshResultsTable() {
+    try {
+        const res = await fetch('/api/refresh_view', {method:'POST'});
+        const data = await res.json();
+        renderResults(data.columns, data.rows);
+    } catch (e) {}
+}
+
+function handleAsk() {
+    const input = document.getElementById('askInput');
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = '';
+    runAssistantTurn(q);
+}
+
+/* ============================================================= */
+/* Data Analysis chat - separate from the SQL assistant above.   */
+/* Handles mean/median/mode/sum/min/max/stdev and future-value   */
+/* trend projections, computed with real arithmetic server-side. */
+/* ============================================================= */
+function analysisLog(text) {
+    const el = document.getElementById('analysisLog');
+    const placeholder = el.dataset.placeholder !== 'false';
+    el.textContent = placeholder ? text : el.textContent + '\n\n' + text;
+    el.dataset.placeholder = 'false';
+    el.scrollTop = el.scrollHeight;
+}
+
+function formatComputation(kind, computation) {
+    if (!computation) return '';
+    const round = (n) => (typeof n === 'number' ? Math.round(n * 100) / 100 : n);
+    if (kind === 'stats') {
+        return Object.entries(computation.stats).map(([col, s]) => {
+            const mode = Array.isArray(s.mode) ? s.mode.map(round).join('/') : round(s.mode);
+            return `${col} (n=${s.count}): mean=${round(s.mean)}, median=${round(s.median)}, mode=${mode}, sum=${round(s.sum)}, min=${round(s.min)}, max=${round(s.max)}, stdev=${round(s.stdev)}`;
+        }).join('\n');
+    }
+    if (kind === 'trend') {
+        const p = computation;
+        const r2 = p.fit_quality_r_squared === null || p.fit_quality_r_squared === undefined ? 'n/a' : round(p.fit_quality_r_squared);
+        return `${p.value_column} vs ${p.date_column}: latest=${round(p.latest_value)} (${p.latest_date}), avg change/year=${round(p.average_change_per_year)}, projected in ${p.years_ahead}y = ${round(p.projected_value)} (R²=${r2}, n=${p.n_data_points})`;
+    }
+    return '';
+}
+
+function handleAnalysisAsk() {
+    const input = document.getElementById('analysisInput');
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = '';
+    runAnalysisTurn(q);
+}
+
+async function runAnalysisTurn(question) {
+    analysisLog('> ' + question);
+
+    if (!dsConnected) {
+        analysisLog('Connect to a database table first.');
+        return;
+    }
+
+    let data;
+    try {
+        const res = await fetch('/api/analysis', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({question})
+        });
+        data = await res.json();
+        if (!res.ok) {
+            analysisLog('Error: ' + (data.error || 'The analysis request failed.'));
+            return;
+        }
+    } catch (e) {
+        analysisLog('Something went wrong reaching the server.');
+        return;
+    }
+
+    analysisLog(data.answer || 'No answer.');
+    const details = formatComputation(data.kind, data.computation);
+    if (details) analysisLog(details);
+}
+
+async function runAssistantTurn(rawText) {
+    if (!dsConnected) {
+        log('> ' + rawText);
+        log('Connect to a database table first.');
+        return;
+    }
+
+    log('> ' + rawText);
+
+    // If we're mid-clarification, this message is the answer to it.
+    let question = rawText;
+    if (pendingClarification) {
+        question = `${pendingClarification.originalQuestion}\n\nClarification: ${rawText}`;
+        pendingClarification = null;
+        return generateAndRun(question);
+    }
+
+    try {
+        const vRes = await fetch('/api/validate', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question})
+        });
+        const vData = await vRes.json();
+        if (!vData.valid) {
+            log(vData.reason || 'That prompt is too short or vague - try adding more detail.');
+            return;
+        }
+
+        const dRes = await fetch('/api/looks_like_delete', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question})
+        });
+        const dData = await dRes.json();
+        if (dData.is_delete) {
+            openDeleteClarifyModal(question);
+            return;
+        }
+
+        await generateAndRun(question);
+    } catch (e) {
+        log('Something went wrong reaching the server.');
+    }
+}
+
+async function generateAndRun(question) {
+    let data;
+    try {
+        const res = await fetch('/api/generate', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question})
+        });
+        data = await res.json();
+        if (res.status === 400 && data.error) {
+            log('Error: ' + data.error);
+            return;
+        }
+    } catch (e) {
+        log('Something went wrong reaching the server.');
+        return;
+    }
+
+    if (data.needs_clarification) {
+        pendingClarification = { originalQuestion: question };
+        log('Assistant: ' + data.question);
+        return;
+    }
+
+    if (data.error) {
+        log('Error: ' + data.error);
+        return;
+    }
+
+    if (data.explanation) log('Assistant: ' + data.explanation);
+
+    if (data.destructive) {
+        openConfirmModal(question, data.sql, data.explanation, data.preview);
+    } else {
+        await executeQuery(question, data.sql);
+    }
+}
+
+async function executeQuery(question, sql) {
+    let data;
+    try {
+        const res = await fetch('/api/execute', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question, sql})
+        });
+        data = await res.json();
+    } catch (e) {
+        log('Something went wrong reaching the server.');
+        return;
+    }
+
+    if (!data.success) {
+        log('Error: ' + (data.error || 'The query failed.'));
+        if (data.diagnosis) log(data.diagnosis);
+        return;
+    }
+
+    if (data.is_select) {
+        renderResults(data.columns, data.rows);
+        log(`(${data.rows.length} row(s) returned - see the table below.)`);
+        if (data.summary) log('Assistant: ' + data.summary);
+    } else {
+        log(`(${data.rowcount} row(s) affected.)`);
+        refreshResultsTable();
+    }
+}
+
+/* ============================================================= */
+/* Modals                                                         */
+/* ============================================================= */
+const modalOverlay = document.getElementById('modalOverlay');
+const modalBox = document.getElementById('modalBox');
+
+function closeModal() { modalOverlay.style.display = 'none'; modalBox.innerHTML = ''; }
+
+function openDeleteClarifyModal(question) {
+    let choice = null;
+    modalBox.innerHTML = `
+        <h3>What should this affect?</h3>
+        <div class="preview-note">Your request sounds like it deletes or clears something. Pick what it should apply to:</div>
+        <div class="choice-row">
+            <button class="btn choice-btn" data-choice="row"><span>Whole row(s)</span></button>
+            <button class="btn choice-btn" data-choice="value"><span>Single value (set NULL)</span></button>
+            <button class="btn choice-btn" data-choice="column"><span>Entire column</span></button>
+        </div>
+        <input type="text" id="clarifyLocation" placeholder="Which row(s)/value/column? (e.g. id = 5, or column name)">
+        <div class="modal-actions">
+            <button class="btn" id="clarifyCancel"><span>Cancel</span></button>
+            <button class="btn" id="clarifyConfirm"><span>Continue</span></button>
+        </div>
+    `;
+    modalBox.querySelectorAll('.choice-btn').forEach(btn => {
+        btn.onclick = () => {
+            modalBox.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            choice = btn.getAttribute('data-choice');
+        };
+    });
+    modalBox.querySelector('#clarifyCancel').onclick = () => { closeModal(); log('Cancelled.'); };
+    modalBox.querySelector('#clarifyConfirm').onclick = async () => {
+        const location = document.getElementById('clarifyLocation').value.trim();
+        if (!choice || !location) return;
+        try {
+            const res = await fetch('/api/format_delete_clarification', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({question, choice, location})
+            });
+            const data = await res.json();
+            closeModal();
+            if (data.question) {
+                await generateAndRun(data.question);
+            } else {
+                log('Error: ' + (data.error || 'Could not build the clarified request.'));
+            }
+        } catch (e) {
+            closeModal();
+            log('Something went wrong reaching the server.');
+        }
+    };
+    modalOverlay.style.display = 'flex';
+}
+
+function openConfirmModal(question, sql, explanation, preview) {
+    let previewNote = '';
+    if (preview && preview.success && preview.is_select) {
+        previewNote = `This will affect ${preview.rows.length} row(s) (showing up to 50).`;
+    }
+    modalBox.innerHTML = `
+        <h3>Confirm this change</h3>
+        <div class="preview-note">${explanation ? explanation : ''}</div>
+        <div class="glass-panel" style="padding:14px; font-family:'Fira Code',monospace; font-size:0.85rem; white-space:pre-wrap; background:rgba(0,0,0,0.25); border-radius:12px;">${sql}</div>
+        ${previewNote ? `<div class="preview-note">${previewNote}</div>` : ''}
+        <div class="modal-actions">
+            <button class="btn" id="confirmCancel"><span>Cancel</span></button>
+            <button class="btn" id="confirmRun"><span>Run it</span></button>
+        </div>
+    `;
+    modalBox.querySelector('#confirmCancel').onclick = () => { closeModal(); log('Cancelled.'); };
+    modalBox.querySelector('#confirmRun').onclick = async () => {
+        closeModal();
+        await executeQuery(question, sql);
+    };
+    modalOverlay.style.display = 'flex';
+}
+</script>
+</body>
+</html>
